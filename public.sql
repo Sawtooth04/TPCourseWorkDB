@@ -12,7 +12,7 @@
  Target Server Version : 150001
  File Encoding         : 65001
 
- Date: 14/03/2024 23:16:49
+ Date: 20/03/2024 22:55:28
 */
 
 
@@ -5767,6 +5767,7 @@ CREATE TABLE "public"."PersonRole" (
 -- ----------------------------
 -- Records of PersonRole
 -- ----------------------------
+INSERT INTO "public"."PersonRole" VALUES (1, 1, 1);
 
 -- ----------------------------
 -- Table structure for Role
@@ -5781,6 +5782,7 @@ CREATE TABLE "public"."Role" (
 -- ----------------------------
 -- Records of Role
 -- ----------------------------
+INSERT INTO "public"."Role" VALUES (1, 'admin');
 
 -- ----------------------------
 -- Table structure for SocialStatus
@@ -12246,13 +12248,13 @@ END$BODY$
 -- ----------------------------
 DROP FUNCTION IF EXISTS "public"."get_traffic_polices"("start" int4, "count" int4);
 CREATE OR REPLACE FUNCTION "public"."get_traffic_polices"("start" int4, "count" int4)
-  RETURNS TABLE("trafficPoliceID" int4, "localityID" int4, "address" varchar, "employeesCount" int8, "inspectinosCount" int8) AS $BODY$BEGIN
+  RETURNS TABLE("trafficPoliceID" int4, "locality" varchar, "address" varchar, "employeesCount" int8, "inspectionsCount" int8) AS $BODY$BEGIN
 	
-	RETURN QUERY SELECT trafficPolice."trafficPoliceID", trafficPolice."localityID", trafficPolice."address", COUNT(employee), COUNT(inspection."technicalInspectionID")
-		FROM "TrafficPolice" AS trafficPolice
+	RETURN QUERY SELECT trafficPolice."trafficPoliceID", trafficPolice."locality", trafficPolice."address", COUNT(employee), COUNT(inspection."technicalInspectionID")
+		FROM "TrafficPoliceWithLocality" AS trafficPolice
 			LEFT JOIN "TrafficPoliceEmployee" AS employee ON trafficPolice."trafficPoliceID" = employee."trafficPoliceID"
 			LEFT JOIN "TechnicalInspection" AS inspection ON trafficPolice."trafficPoliceID" = inspection."trafficPoliceID"
-			GROUP BY trafficPolice."trafficPoliceID"
+			GROUP BY trafficPolice."trafficPoliceID", trafficPolice."locality", trafficPolice."address"
 			OFFSET "start" LIMIT "count";
 	
 END$BODY$
@@ -12835,7 +12837,7 @@ SELECT setval('"public"."Locality_localityID_seq"', 145, true);
 -- ----------------------------
 ALTER SEQUENCE "public"."PersonRole_personRoleID_seq"
 OWNED BY "public"."PersonRole"."personRoleID";
-SELECT setval('"public"."PersonRole_personRoleID_seq"', 2, false);
+SELECT setval('"public"."PersonRole_personRoleID_seq"', 2, true);
 
 -- ----------------------------
 -- Alter sequences owned by
@@ -12849,7 +12851,7 @@ SELECT setval('"public"."Person_personID_seq"', 2, true);
 -- ----------------------------
 ALTER SEQUENCE "public"."Role_roleID_seq"
 OWNED BY "public"."Role"."roleID";
-SELECT setval('"public"."Role_roleID_seq"', 2, false);
+SELECT setval('"public"."Role_roleID_seq"', 2, true);
 
 -- ----------------------------
 -- Alter sequences owned by
