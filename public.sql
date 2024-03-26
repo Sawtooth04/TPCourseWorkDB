@@ -12,7 +12,7 @@
  Target Server Version : 150001
  File Encoding         : 65001
 
- Date: 20/03/2024 22:55:28
+ Date: 26/03/2024 22:32:00
 */
 
 
@@ -5783,6 +5783,7 @@ CREATE TABLE "public"."Role" (
 -- Records of Role
 -- ----------------------------
 INSERT INTO "public"."Role" VALUES (1, 'admin');
+INSERT INTO "public"."Role" VALUES (2, 'department_owner');
 
 -- ----------------------------
 -- Table structure for SocialStatus
@@ -12076,6 +12077,22 @@ END$BODY$
   ROWS 1000;
 
 -- ----------------------------
+-- Function structure for get_localities_by_level
+-- ----------------------------
+DROP FUNCTION IF EXISTS "public"."get_localities_by_level"("required_level" int4);
+CREATE OR REPLACE FUNCTION "public"."get_localities_by_level"("required_level" int4)
+  RETURNS SETOF "public"."Locality" AS $BODY$BEGIN
+
+	RETURN QUERY SELECT "Locality".* FROM "Locality"
+		LEFT JOIN "LocalityType" AS lt ON lt."localityTypeID" = "Locality"."localityTypeID"
+		WHERE lt."level" = "required_level";
+	
+END$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 100
+  ROWS 1000;
+
+-- ----------------------------
 -- Function structure for get_merged_localities
 -- ----------------------------
 DROP FUNCTION IF EXISTS "public"."get_merged_localities"("root_id" int4);
@@ -12851,7 +12868,7 @@ SELECT setval('"public"."Person_personID_seq"', 2, true);
 -- ----------------------------
 ALTER SEQUENCE "public"."Role_roleID_seq"
 OWNED BY "public"."Role"."roleID";
-SELECT setval('"public"."Role_roleID_seq"', 2, true);
+SELECT setval('"public"."Role_roleID_seq"', 3, true);
 
 -- ----------------------------
 -- Alter sequences owned by
