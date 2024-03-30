@@ -12,7 +12,7 @@
  Target Server Version : 150001
  File Encoding         : 65001
 
- Date: 26/03/2024 22:32:00
+ Date: 30/03/2024 22:04:02
 */
 
 
@@ -6148,6 +6148,7 @@ INSERT INTO "public"."TrafficPolicePhoneNumber" VALUES (56, 57, '6789012345');
 INSERT INTO "public"."TrafficPolicePhoneNumber" VALUES (57, 58, '7890123456');
 INSERT INTO "public"."TrafficPolicePhoneNumber" VALUES (58, 59, '8901234567');
 INSERT INTO "public"."TrafficPolicePhoneNumber" VALUES (59, 60, '9012345678');
+INSERT INTO "public"."TrafficPolicePhoneNumber" VALUES (62, 5, '24565');
 
 -- ----------------------------
 -- Table structure for TrafficPoliceRank
@@ -6180,6 +6181,33 @@ INSERT INTO "public"."TrafficPoliceRank" VALUES (16, 'Генерал-майор'
 INSERT INTO "public"."TrafficPoliceRank" VALUES (17, 'Генерал-лейтенант');
 INSERT INTO "public"."TrafficPoliceRank" VALUES (18, 'Генерал-полковник');
 INSERT INTO "public"."TrafficPoliceRank" VALUES (19, 'Генерал армии');
+
+-- ----------------------------
+-- Function structure for add_traffic_police
+-- ----------------------------
+DROP FUNCTION IF EXISTS "public"."add_traffic_police"("locality_id" int4, "department_address" varchar);
+CREATE OR REPLACE FUNCTION "public"."add_traffic_police"("locality_id" int4, "department_address" varchar)
+  RETURNS "pg_catalog"."void" AS $BODY$BEGIN
+	
+	INSERT INTO "TrafficPolice" ("localityID", "address") VALUES ("locality_id", "department_address");
+
+	RETURN;
+END$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 100;
+
+-- ----------------------------
+-- Function structure for add_traffic_police_number
+-- ----------------------------
+DROP FUNCTION IF EXISTS "public"."add_traffic_police_number"("traffic_police_id" int4, "number" varchar);
+CREATE OR REPLACE FUNCTION "public"."add_traffic_police_number"("traffic_police_id" int4, "number" varchar)
+  RETURNS "pg_catalog"."void" AS $BODY$BEGIN
+	
+	INSERT INTO "TrafficPolicePhoneNumber" ("trafficPoliceID", "phoneNumber") VALUES ("traffic_police_id", "number");
+	
+END$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 100;
 
 -- ----------------------------
 -- Function structure for car_brand_init
@@ -11795,6 +11823,19 @@ END$BODY$
   COST 100;
 
 -- ----------------------------
+-- Function structure for delete_traffic_police_number
+-- ----------------------------
+DROP FUNCTION IF EXISTS "public"."delete_traffic_police_number"("number_id" int4);
+CREATE OR REPLACE FUNCTION "public"."delete_traffic_police_number"("number_id" int4)
+  RETURNS "pg_catalog"."void" AS $BODY$BEGIN
+	
+	DELETE FROM "TrafficPolicePhoneNumber" WHERE "trafficPolicePhoneNumberID" = "number_id";
+	
+END$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 100;
+
+-- ----------------------------
 -- Function structure for employee_init
 -- ----------------------------
 DROP FUNCTION IF EXISTS "public"."employee_init"();
@@ -12085,7 +12126,21 @@ CREATE OR REPLACE FUNCTION "public"."get_localities_by_level"("required_level" i
 
 	RETURN QUERY SELECT "Locality".* FROM "Locality"
 		LEFT JOIN "LocalityType" AS lt ON lt."localityTypeID" = "Locality"."localityTypeID"
-		WHERE lt."level" = "required_level";
+		WHERE lt."level" >= "required_level";
+	
+END$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 100
+  ROWS 1000;
+
+-- ----------------------------
+-- Function structure for get_localities_by_parent
+-- ----------------------------
+DROP FUNCTION IF EXISTS "public"."get_localities_by_parent"("locality_id" int4);
+CREATE OR REPLACE FUNCTION "public"."get_localities_by_parent"("locality_id" int4)
+  RETURNS SETOF "public"."Locality" AS $BODY$BEGIN
+
+	RETURN QUERY SELECT * FROM "Locality" WHERE "parentLocalityID" = "locality_id";
 	
 END$BODY$
   LANGUAGE plpgsql VOLATILE
@@ -12228,6 +12283,20 @@ END$BODY$
   ROWS 1000;
 
 -- ----------------------------
+-- Function structure for get_traffic_police
+-- ----------------------------
+DROP FUNCTION IF EXISTS "public"."get_traffic_police"("traffic_police_id" int4);
+CREATE OR REPLACE FUNCTION "public"."get_traffic_police"("traffic_police_id" int4)
+  RETURNS SETOF "public"."TrafficPolice" AS $BODY$BEGIN
+
+	RETURN QUERY SELECT * FROM "TrafficPolice" WHERE "trafficPoliceID" = "traffic_police_id";
+	
+END$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 100
+  ROWS 1000;
+
+-- ----------------------------
 -- Function structure for get_traffic_police_efficiencies
 -- ----------------------------
 DROP FUNCTION IF EXISTS "public"."get_traffic_police_efficiencies"("start" int4, "count" int4);
@@ -12255,6 +12324,39 @@ CREATE OR REPLACE FUNCTION "public"."get_traffic_police_efficiencies_by_interval
 		WHERE (now() - "inspection"."inspectedAt") <= "interval"
 		GROUP BY "trafficPolice"."trafficPoliceID", "trafficPolice"."locality", "trafficPolice"."address";
 		
+END$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 100
+  ROWS 1000;
+
+-- ----------------------------
+-- Function structure for get_traffic_police_employees
+-- ----------------------------
+DROP FUNCTION IF EXISTS "public"."get_traffic_police_employees"("traffic_police_id" int4, "start" int4, "count" int4);
+CREATE OR REPLACE FUNCTION "public"."get_traffic_police_employees"("traffic_police_id" int4, "start" int4, "count" int4)
+  RETURNS TABLE("trafficPoliceEmployeeID" int4, "name" varchar, "secondName" varchar, "patronymic" varchar, "birthDate" date, "rank" varchar, "inspectionsCount" int8) AS $BODY$BEGIN
+
+	RETURN QUERY SELECT department_employee."trafficPoliceEmployeeID", "Employee"."firstName", "Employee"."secondName", "Employee"."patronymic", "Employee"."birthDate", rank."name", COUNT(inspection."technicalInspectionID") FROM "TrafficPoliceEmployee" AS department_employee
+		LEFT JOIN "Employee" ON "Employee"."employeeID" = department_employee."employeeID"
+		LEFT JOIN "TrafficPoliceRank" AS rank ON rank."trafficPoliceRankID" = department_employee."trafficPoliceRankID"
+		LEFT JOIN "TechnicalInspection" AS inspection ON inspection."employeeID" = "Employee"."employeeID"
+		GROUP BY department_employee."trafficPoliceEmployeeID", "Employee"."firstName", "Employee"."secondName", "Employee"."patronymic", "Employee"."birthDate", rank."name"
+		OFFSET "start" LIMIT "count";
+	
+END$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 100
+  ROWS 1000;
+
+-- ----------------------------
+-- Function structure for get_traffic_police_numbers
+-- ----------------------------
+DROP FUNCTION IF EXISTS "public"."get_traffic_police_numbers"("traffic_police_id" int4);
+CREATE OR REPLACE FUNCTION "public"."get_traffic_police_numbers"("traffic_police_id" int4)
+  RETURNS SETOF "public"."TrafficPolicePhoneNumber" AS $BODY$BEGIN
+
+	RETURN QUERY SELECT * FROM "TrafficPolicePhoneNumber" WHERE "trafficPoliceID" = "traffic_police_id";
+	
 END$BODY$
   LANGUAGE plpgsql VOLATILE
   COST 100
@@ -12910,7 +13012,7 @@ SELECT setval('"public"."TrafficPoliceEmployee_trafficPoliceEmployeeID_seq"', 63
 -- ----------------------------
 ALTER SEQUENCE "public"."TrafficPolicePhoneNumber_trafficPolicePhoneNumberID_seq"
 OWNED BY "public"."TrafficPolicePhoneNumber"."trafficPolicePhoneNumberID";
-SELECT setval('"public"."TrafficPolicePhoneNumber_trafficPolicePhoneNumberID_seq"', 60, true);
+SELECT setval('"public"."TrafficPolicePhoneNumber_trafficPolicePhoneNumberID_seq"', 64, true);
 
 -- ----------------------------
 -- Alter sequences owned by
@@ -12924,7 +13026,7 @@ SELECT setval('"public"."TrafficPoliceRank_trafficPoliceRankID_seq"', 20, true);
 -- ----------------------------
 ALTER SEQUENCE "public"."TrafficPolice_trafficPoliceID_seq"
 OWNED BY "public"."TrafficPolice"."trafficPoliceID";
-SELECT setval('"public"."TrafficPolice_trafficPoliceID_seq"', 61, true);
+SELECT setval('"public"."TrafficPolice_trafficPoliceID_seq"', 65, true);
 
 -- ----------------------------
 -- Primary Key structure for table Car
