@@ -12,7 +12,7 @@
  Target Server Version : 150001
  File Encoding         : 65001
 
- Date: 30/03/2024 22:04:02
+ Date: 07/04/2024 22:55:50
 */
 
 
@@ -12003,6 +12003,23 @@ END$BODY$
   ROWS 1000;
 
 -- ----------------------------
+-- Function structure for get_employee
+-- ----------------------------
+DROP FUNCTION IF EXISTS "public"."get_employee"("employee_id" int4);
+CREATE OR REPLACE FUNCTION "public"."get_employee"("employee_id" int4)
+  RETURNS TABLE("employeeID" int4, "firstName" varchar, "secondName" varchar, "patronymic" varchar, "birthDate" date, "currentTrafficPolice" varchar, "currentTrafficPoliceAddress" varchar) AS $BODY$BEGIN
+
+	RETURN QUERY SELECT "Employee".*, department."locality", department."address" FROM "Employee"
+		LEFT JOIN "TrafficPoliceEmployee" AS employed ON "Employee"."employeeID" = employed."employeeID"
+		LEFT JOIN "TrafficPoliceWithLocality" AS department ON employed."trafficPoliceID" = department."trafficPoliceID"
+		WHERE "Employee"."employeeID" = "employee_id";
+	
+END$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 100
+  ROWS 1000;
+
+-- ----------------------------
 -- Function structure for get_employee_by_rank
 -- ----------------------------
 DROP FUNCTION IF EXISTS "public"."get_employee_by_rank"("start" int4, "count" int4, "rankID" int4);
@@ -12014,6 +12031,26 @@ CREATE OR REPLACE FUNCTION "public"."get_employee_by_rank"("start" int4, "count"
 		WHERE "TrafficPoliceEmployee"."trafficPoliceRankID" = "rankID"
 		OFFSET "start" LIMIT "count";
 		
+END$BODY$
+  LANGUAGE plpgsql VOLATILE
+  COST 100
+  ROWS 1000;
+
+-- ----------------------------
+-- Function structure for get_employee_inspections
+-- ----------------------------
+DROP FUNCTION IF EXISTS "public"."get_employee_inspections"("employee_id" int4, "start" int4, "count" int4);
+CREATE OR REPLACE FUNCTION "public"."get_employee_inspections"("employee_id" int4, "start" int4, "count" int4)
+  RETURNS TABLE("technicalInspectionID" int4, "ownerFirstName" varchar, "ownerSecondName" varchar, "ownerPatronymic" varchar, "carBrand" varchar, "inspectedAt" timestamp) AS $BODY$BEGIN
+
+	RETURN QUERY SELECT inspection."technicalInspectionID", owner."firstName", owner."secondName", owner."patronymic", brand."name", inspection."inspectedAt" FROM "TechnicalInspection" AS inspection
+		LEFT JOIN "TrafficPoliceWithLocality" AS police ON police."trafficPoliceID" = inspection."trafficPoliceID"
+		LEFT JOIN "CarOwner" AS owner ON owner."carOwnerID" = inspection."carOwnerID"
+		LEFT JOIN "Car" AS car ON car."carID" = inspection."carID"
+		LEFT JOIN "CarBrand" AS brand ON brand."carBrandID" = car."carBrandID"
+		WHERE inspection."employeeID" = "employee_id"
+		OFFSET "start" LIMIT "count";
+	
 END$BODY$
   LANGUAGE plpgsql VOLATILE
   COST 100
@@ -12332,15 +12369,20 @@ END$BODY$
 -- ----------------------------
 -- Function structure for get_traffic_police_employees
 -- ----------------------------
-DROP FUNCTION IF EXISTS "public"."get_traffic_police_employees"("traffic_police_id" int4, "start" int4, "count" int4);
-CREATE OR REPLACE FUNCTION "public"."get_traffic_police_employees"("traffic_police_id" int4, "start" int4, "count" int4)
-  RETURNS TABLE("trafficPoliceEmployeeID" int4, "name" varchar, "secondName" varchar, "patronymic" varchar, "birthDate" date, "rank" varchar, "inspectionsCount" int8) AS $BODY$BEGIN
+DROP FUNCTION IF EXISTS "public"."get_traffic_police_employees"("traffic_police_id" int4, "second_name" varchar, "birth_date_from" date, "birth_date_to" date, "employee_rank" varchar, "start" int4, "count" int4);
+CREATE OR REPLACE FUNCTION "public"."get_traffic_police_employees"("traffic_police_id" int4, "second_name" varchar, "birth_date_from" date, "birth_date_to" date, "employee_rank" varchar, "start" int4, "count" int4)
+  RETURNS TABLE("trafficPoliceEmployeeID" int4, "employeeID" int4, "name" varchar, "secondName" varchar, "patronymic" varchar, "birthDate" date, "rank" varchar, "inspectionsCount" int8) AS $BODY$BEGIN
 
-	RETURN QUERY SELECT department_employee."trafficPoliceEmployeeID", "Employee"."firstName", "Employee"."secondName", "Employee"."patronymic", "Employee"."birthDate", rank."name", COUNT(inspection."technicalInspectionID") FROM "TrafficPoliceEmployee" AS department_employee
+	RETURN QUERY SELECT department_employee."trafficPoliceEmployeeID", "Employee"."employeeID", "Employee"."firstName", "Employee"."secondName", "Employee"."patronymic", "Employee"."birthDate", rank."name", COUNT(inspection."technicalInspectionID") FROM "TrafficPoliceEmployee" AS department_employee
 		LEFT JOIN "Employee" ON "Employee"."employeeID" = department_employee."employeeID"
 		LEFT JOIN "TrafficPoliceRank" AS rank ON rank."trafficPoliceRankID" = department_employee."trafficPoliceRankID"
 		LEFT JOIN "TechnicalInspection" AS inspection ON inspection."employeeID" = "Employee"."employeeID"
-		GROUP BY department_employee."trafficPoliceEmployeeID", "Employee"."firstName", "Employee"."secondName", "Employee"."patronymic", "Employee"."birthDate", rank."name"
+		WHERE 
+			"Employee"."secondName" LIKE CASE WHEN "second_name" IS NULL THEN '%' ELSE "second_name" END AND
+			rank."name" LIKE CASE WHEN "employee_rank" IS NULL THEN '%' ELSE "employee_rank" END AND
+			"Employee"."birthDate" >= CASE WHEN "birth_date_from" IS NULL THEN to_timestamp(0) ELSE "birth_date_from" END AND
+			"Employee"."birthDate" <= CASE WHEN "birth_date_to" IS NULL THEN now() ELSE "birth_date_to" END
+		GROUP BY department_employee."trafficPoliceEmployeeID", "Employee"."employeeID", "Employee"."firstName", "Employee"."secondName", "Employee"."patronymic", "Employee"."birthDate", rank."name"
 		OFFSET "start" LIMIT "count";
 	
 END$BODY$
